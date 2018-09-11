@@ -1,0 +1,97 @@
+---
+- name: Workstation system setup
+  hosts: localhost
+  become: true
+  tasks:
+
+  - name: Debug
+    debug:
+      msg: "FOO {{ ansible_distribution_version }}"
+
+  - name: Install workstation repos
+    dnf: state=latest name=fedora-workstation-repositories
+
+  - name: Enable workstation repos
+    command: dnf config-manager --set-enabled google-chrome
+    warn: False
+
+  - name: Enable rpmfusion repos
+    dnf: state=latest name={{ item }}
+    with_items:
+    - "https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ ansible_distribution_version }}.noarch.rpm"
+    - "https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ ansible_distribution_version }}.noarch.rpm"
+
+  - name: Enable Copr repos
+    command: dnf -y copr enable {{ item }}
+    with_items:
+    - phracek/PyCharm
+    warn: False
+
+  - name: Install packages
+    dnf: state=latest name={{ item }}
+    with_items:
+    - vim
+    - vim-X11
+    - google-chrome-stable
+    - vlc
+    - light
+    - hexchat
+    - pycharm-community
+
+    - qtile
+    - feh
+    - gnome-screensaver
+    - gmrun
+    - network-manager-applet
+    - fontawesome-fonts
+    - lm_sensors
+    - acpi
+
+    - docker
+    - docker-compose
+
+  - name: Run services
+    systemd: state=started name={{ item }} enabled=yes
+    with_items:
+    - docker
+
+    # https://developer.fedoraproject.org/tools/docker/docker-installation.html
+    # - name: Docker as user
+    # command: sudo groupadd docker && sudo gpasswd -a jkadlcik docker && sudo systemctl restart docker && newgrp docker
+
+  - name: Docker as user - create group
+    group: name=docker state=present
+
+  - name: Docker as user - add user to group
+    user: name=jkadlcik groups=docker append=yes
+    # Conditionaly restart docker here and run `newgrp docker`
+
+
+- name: Workstation user setup
+  hosts: localhost
+  tasks:
+
+  - name: Debug
+    debug:
+    msg: "BAR{{ ansible_distribution_version }}"
+
+  - name: Create directory structure
+    file: path=/home/jkadlcik/{{ item }} state=directory
+    with_items:
+    - .config/vlc
+    - git
+
+  - name: Clone git repos
+    git: repo={{ item.repo }} dest=/home/jkadlcik/git/{{ item.dest }}
+    with_items:
+    - {repo: "https://github.com/FrostyX/dotfiles.git", dest: "dotfiles"}
+
+  - name: Use config from dotfiles repo
+    file: src=/home/jkadlcik/git/dotfiles/{{ item }} dest=/home/jkadlcik/{{ item }} state=link
+    with_items:
+    - ".gitconfig"
+    - ".vim"
+    - ".vimrc"
+    - ".local/share/applications/gvim.desktop"
+    - ".config/qtile"
+    - ".config/vlc/vlcrc"
